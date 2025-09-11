@@ -6,6 +6,9 @@ import {
   Res,
   HttpException,
   HttpStatus,
+  Post,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -14,9 +17,29 @@ import {
   ApiParam,
   ApiQuery,
   ApiProduces,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
-import { Response } from 'express';
+import { Response, Request } from 'express';
 import { FileService, ExcelTemplate } from './file.service';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { FileFilterCallback } from 'multer';
+
+const excelFileFilter = (
+  req: Request,
+  file: Express.Multer.File,
+  cb: FileFilterCallback,
+): void => {
+  if (
+    file.mimetype.includes('spreadsheet') ||
+    file.originalname.endsWith('.xlsx') ||
+    file.originalname.endsWith('.xls')
+  ) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only Excel files are allowed') as any, false);
+  }
+};
 
 @ApiTags('file')
 @Controller('file')
@@ -61,7 +84,8 @@ export class FileController {
     try {
       return this.fileService.getTemplateInfo(templateName);
     } catch (error) {
-      throw new HttpException(error, HttpStatus.NOT_FOUND);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new HttpException(message, HttpStatus.NOT_FOUND);
     }
   }
 
@@ -127,7 +151,50 @@ export class FileController {
 
       res.send(buffer);
     } catch (error) {
-      throw new HttpException(error, HttpStatus.NOT_FOUND);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new HttpException(message, HttpStatus.NOT_FOUND);
     }
+  }
+
+  @Post('upload/:templateName')
+  @ApiOperation({ summary: 'Upload Excel and persist to DB' })
+  @ApiParam({ name: 'templateName', example: 'users' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Excel file payload',
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      fileFilter: excelFileFilter,
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  async upload(
+    @Param('templateName') templateName: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new HttpException('No file uploaded', HttpStatus.BAD_REQUEST);
+    }
+    return this.fileService.processExcelUpload(templateName, file.buffer);
+  }
+
+  @Get('data/:templateName')
+  @ApiOperation({ summary: 'Get paginated data from DB' })
+  @ApiParam({ name: 'templateName', example: 'users' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 10 })
+  async getData(
+    @Param('templateName') templateName: string,
+    @Query('page') page = 1,
+    @Query('limit') limit = 10,
+  ) {
+    return this.fileService.getData(templateName, Number(page), Number(limit));
   }
 }

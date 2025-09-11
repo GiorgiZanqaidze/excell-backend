@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiProperty } from '@nestjs/swagger';
 import * as XLSX from 'xlsx';
+import { MongoService } from '../mongo/mongo.service';
 
 export class TemplateColumn {
   @ApiProperty({
@@ -81,7 +82,10 @@ export class ExcelTemplate {
 
 @Injectable()
 export class FileService {
-  constructor(private configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly mongo: MongoService,
+  ) {}
 
   /**
    * Get available Excel templates
@@ -258,8 +262,22 @@ export class FileService {
 
     // Add sample data if requested
     if (includeSampleData && template.sampleData) {
-      const sampleRows = template.sampleData.map((item) =>
-        template.columns.map((col) => (item[col.key] as string) || ''),
+      const sampleRows: string[][] = template.sampleData.map((item) =>
+        template.columns.map((col) => {
+          const value = (item as Record<string, unknown>)[col.key];
+          if (value === null || value === undefined) return '';
+          if (
+            typeof value === 'string' ||
+            typeof value === 'number' ||
+            typeof value === 'boolean'
+          ) {
+            return String(value);
+          }
+          if (value instanceof Date && !Number.isNaN(value.getTime())) {
+            return value.toISOString().slice(0, 10);
+          }
+          return '';
+        }),
       );
       worksheetData = worksheetData.concat(sampleRows);
     }
@@ -347,5 +365,148 @@ export class FileService {
     }
 
     return template;
+  }
+
+  /**
+   * Upload Excel, validate and persist into MongoDB
+   */
+  async processExcelUpload(
+    templateName: string,
+    buffer: Buffer,
+  ): Promise<{ message: string; processed: number; errors: string[] }> {
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet);
+
+    const errors: string[] = [];
+    const docs: any[] = [];
+
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
+      try {
+        if (templateName === 'users') {
+          docs.push(this.mapUserRow(row));
+        } else if (templateName === 'products') {
+          docs.push(this.mapProductRow(row));
+        } else {
+          throw new Error(`Unsupported template '${templateName}'`);
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown processing error';
+        // +2 because header row + 1-based index
+        errors.push(`Row ${index + 2}: ${message}`);
+      }
+    }
+
+    if (docs.length > 0) {
+      const collection = this.mongo.getCollection(
+        templateName === 'users' ? 'users' : 'products',
+      );
+      await collection.insertMany(docs);
+    }
+
+    return {
+      message: `Processed ${docs.length} of ${rows.length} rows`,
+      processed: docs.length,
+      errors,
+    };
+  }
+
+  async getData(templateName: string, page = 1, limit = 10): Promise<any[]> {
+    const collection = this.mongo.getCollection(
+      templateName === 'users' ? 'users' : 'products',
+    );
+    const skip = (Number(page) - 1) * Number(limit);
+    const cursor = collection
+      .find({})
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit));
+    return cursor.toArray();
+  }
+
+  private parseBoolean(value: unknown): boolean | undefined {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+      const n = value.trim().toLowerCase();
+      if (['true', '1', 'yes'].includes(n)) return true;
+      if (['false', '0', 'no'].includes(n)) return false;
+    }
+    if (typeof value === 'number') return value !== 0;
+    return undefined;
+  }
+
+  private parseNumber(value: unknown): number | undefined {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      const n = Number(value);
+      return Number.isNaN(n) ? undefined : n;
+    }
+    return undefined;
+  }
+
+  private parseDate(value: unknown): Date | undefined {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+    if (typeof value === 'string') {
+      const d = new Date(value);
+      return Number.isNaN(d.getTime()) ? undefined : d;
+    }
+    if (typeof value === 'number') {
+      const d = new Date(value);
+      return Number.isNaN(d.getTime()) ? undefined : d;
+    }
+    return undefined;
+  }
+
+  private required<T>(value: T | undefined, name: string): T {
+    if (value === undefined || value === null || value === '') {
+      throw new Error(`Field '${name}' is required`);
+    }
+    return value as T;
+  }
+
+  private mapUserRow(row: Record<string, unknown>) {
+    const firstName = this.required<string>(
+      row.firstName as string,
+      'firstName',
+    );
+    const lastName = this.required<string>(row.lastName as string, 'lastName');
+    const email = this.required<string>(row.email as string, 'email');
+    const phone = (row.phone as string) ?? undefined;
+    const birthDate = this.parseDate(row.birthDate);
+    const isActive = this.parseBoolean(row.isActive) ?? true;
+
+    return {
+      firstName,
+      lastName,
+      email,
+      phone,
+      birthDate,
+      isActive,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+  }
+
+  private mapProductRow(row: Record<string, unknown>) {
+    const name = this.required<string>(row.name as string, 'name');
+    const sku = this.required<string>(row.sku as string, 'sku');
+    const price = this.required<number>(this.parseNumber(row.price), 'price');
+    const category = this.required<string>(row.category as string, 'category');
+    const stock = this.parseNumber(row.stock) ?? 0;
+    const description = (row.description as string) ?? undefined;
+
+    return {
+      name,
+      sku,
+      price,
+      category,
+      stock,
+      description,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
   }
 }
