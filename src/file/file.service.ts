@@ -1,20 +1,81 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ApiProperty } from '@nestjs/swagger';
 import * as XLSX from 'xlsx';
 
-export interface TemplateColumn {
+export class TemplateColumn {
+  @ApiProperty({
+    description: 'Column header name',
+    example: 'First Name',
+  })
   header: string;
+
+  @ApiProperty({
+    description: 'Column key for data mapping',
+    example: 'firstName',
+  })
   key: string;
+
+  @ApiProperty({
+    description: 'Column width in Excel',
+    example: 15,
+    required: false,
+  })
   width?: number;
+
+  @ApiProperty({
+    description: 'Data type expected in this column',
+    enum: ['string', 'number', 'date', 'boolean'],
+    example: 'string',
+    required: false,
+  })
   type?: 'string' | 'number' | 'date' | 'boolean';
+
+  @ApiProperty({
+    description: 'Whether this column is required',
+    example: true,
+    required: false,
+  })
   required?: boolean;
+
+  @ApiProperty({
+    description: 'Example value for this column',
+    example: 'John',
+    required: false,
+  })
   example?: string;
 }
 
-export interface ExcelTemplate {
+export class ExcelTemplate {
+  @ApiProperty({
+    description: 'Template identifier name',
+    example: 'users',
+  })
   name: string;
+
+  @ApiProperty({
+    description: 'Human-readable template description',
+    example: 'User Import Template',
+  })
   description: string;
+
+  @ApiProperty({
+    description: 'Column specifications for this template',
+    type: [TemplateColumn],
+  })
   columns: TemplateColumn[];
+
+  @ApiProperty({
+    description: 'Sample data for demonstration',
+    required: false,
+    example: [
+      {
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'john.doe@example.com',
+      },
+    ],
+  })
   sampleData?: any[];
 }
 
@@ -257,7 +318,7 @@ export class FileService {
 
     // Style the title
     if (instructionsSheet['A1']) {
-      instructionsSheet['A1'].s = {
+      (instructionsSheet['A1'] as XLSX.CellObject).s = {
         font: { bold: true, sz: 14 },
         alignment: { horizontal: 'center' },
       };
@@ -269,7 +330,7 @@ export class FileService {
     const excelBuffer = XLSX.write(workbook, {
       type: 'buffer',
       bookType: 'xlsx',
-    });
+    }) as Buffer;
 
     return excelBuffer;
   }
