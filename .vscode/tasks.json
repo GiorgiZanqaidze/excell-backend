@@ -1,0 +1,186 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start Development Server",
+      "type": "npm",
+      "script": "start:dev",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": true,
+        "clear": false
+      },
+      "problemMatcher": ["$tsc-watch"],
+      "runOptions": {
+        "runOn": "folderOpen"
+      },
+      "detail": "Start NestJS development server with hot reload"
+    },
+    {
+      "label": "Start Production Server",
+      "type": "npm",
+      "script": "start:prod",
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      },
+      "dependsOn": "Build Application",
+      "detail": "Start NestJS production server"
+    },
+    {
+      "label": "Build Application",
+      "type": "npm",
+      "script": "build",
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": ["$tsc"],
+      "detail": "Build NestJS application for production"
+    },
+    {
+      "label": "Run Tests",
+      "type": "npm",
+      "script": "test",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      },
+      "problemMatcher": [],
+      "detail": "Run Jest unit tests"
+    },
+    {
+      "label": "Run Tests (Watch Mode)",
+      "type": "npm",
+      "script": "test:watch",
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "jest",
+        "fileLocation": "relative",
+        "pattern": [
+          {
+            "regexp": "^\\s*(FAIL|PASS)\\s+(.*)$",
+            "file": 2
+          }
+        ],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^\\s*Watch Usage",
+          "endsPattern": "^\\s*Ran all test suites"
+        }
+      },
+      "detail": "Run Jest tests in watch mode"
+    },
+    {
+      "label": "Run E2E Tests",
+      "type": "npm",
+      "script": "test:e2e",
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      },
+      "problemMatcher": [],
+      "detail": "Run end-to-end tests"
+    },
+    {
+      "label": "Run Tests with Coverage",
+      "type": "npm",
+      "script": "test:cov",
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      },
+      "problemMatcher": [],
+      "detail": "Run tests with coverage report"
+    },
+    {
+      "label": "Lint Code",
+      "type": "npm",
+      "script": "lint",
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": ["$eslint-stylish"],
+      "detail": "Run ESLint to check and fix code style"
+    },
+    {
+      "label": "Format Code",
+      "type": "npm",
+      "script": "format",
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": [],
+      "detail": "Format code with Prettier"
+    },
+    {
+      "label": "Clean & Install Dependencies",
+      "type": "shell",
+      "command": "npm",
+      "args": ["ci"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      },
+      "problemMatcher": [],
+      "detail": "Clean install all dependencies"
+    },
+    {
+      "label": "Start Debug Server",
+      "type": "npm",
+      "script": "start:debug",
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      },
+      "problemMatcher": ["$tsc-watch"],
+      "detail": "Start NestJS server in debug mode"
+    }
+  ]
+}
