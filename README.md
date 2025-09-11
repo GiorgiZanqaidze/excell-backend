@@ -1,98 +1,127 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+Excel Backend (NestJS)
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+This repository contains the backend API for Excel file import/export, built with NestJS. It handles file uploads, data validation, parsing, and exporting structured data as Excel files.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+🚀 Features
 
-## Description
+Excel Import
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+Accept .xlsx files via upload.
 
-## Project setup
+Parse Excel to JSON using xlsx
+.
 
-```bash
-$ npm install
-```
+Validate required columns and data types.
 
-## Compile and run the project
+Return validation errors for invalid data.
 
-```bash
-# development
-$ npm run start
+Excel Export
 
-# watch mode
-$ npm run start:dev
+Convert backend JSON data to .xlsx.
 
-# production mode
-$ npm run start:prod
-```
+Download Excel file via API endpoint.
 
-## Run tests
+Optional Authentication
 
-```bash
-# unit tests
-$ npm run test
+JWT-based security for protected routes.
 
-# e2e tests
-$ npm run test:e2e
+Dockerized
 
-# test coverage
-$ npm run test:cov
-```
+Ready for containerized deployment.
 
-## Deployment
+Testing
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+Unit tests with Jest.
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+📂 Project Structure
+src/
+├─ app.module.ts          # Root module
+├─ main.ts                # Entry point
+├─ excel/
+│  ├─ excel.module.ts
+│  ├─ excel.controller.ts
+│  ├─ excel.service.ts
+│  ├─ dto/
+│  │  └─ import-excel.dto.ts
+│  └─ interfaces/
+│     └─ excel.interface.ts
+├─ auth/ (optional)
+│  ├─ auth.module.ts
+│  ├─ auth.service.ts
+│  └─ jwt.strategy.ts
+test/                     # Unit & e2e tests
 
-```bash
-$ npm install -g mau
-$ mau deploy
-```
+⚡ Installation
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Clone the repository:
 
-## Resources
+git clone https://github.com/your-org/excel-backend.git
+cd excel-backend
 
-Check out a few resources that may come in handy when working with NestJS:
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Install dependencies:
 
-## Support
+npm install
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
 
-## Stay in touch
+Create a .env file:
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+PORT=3000
+JWT_SECRET=your_jwt_secret
 
-## License
+🏃 Running the App
+Development
+npm run start:dev
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Production
+npm run build
+npm run start:prod
+
+Docker
+docker build -t excel-backend .
+docker run -p 3000:3000 excel-backend
+
+📌 API Endpoints
+Method	Endpoint	Description
+POST	/excel/import	Upload and parse Excel file
+GET	/excel/export	Export data as Excel file
+GET	/excel/data	Fetch JSON data (for frontend preview)
+
+Optional: Protect endpoints using JWT.
+
+🧪 Testing
+
+Run unit tests:
+
+npm run test
+
+
+Run test coverage:
+
+npm run test:cov
+
+🛠 Tech Stack
+
+NestJS – Backend framework
+
+Multer – File uploads
+
+xlsx – Excel parsing & generation
+
+Jest – Unit tests
+
+Docker – Containerization
+
+🔗 Contributing
+
+Fork the repository
+
+Create a new branch (feature/xyz)
+
+Commit your changes
+
+Open a pull request
+
+📄 License
+
+MIT License © [Your Name / Organization]
