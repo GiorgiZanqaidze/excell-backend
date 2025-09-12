@@ -368,16 +368,74 @@ export class FileService {
   }
 
   /**
+   * Export real data from MongoDB to Excel
+   */
+  async exportDataToExcel(templateName: string, limit = 1000): Promise<Buffer> {
+    const template = this.getTemplateInfo(templateName);
+
+    const collection = this.mongo.getCollection(
+      templateName === 'users' ? 'users' : 'products',
+    );
+    const docs = await collection
+      .find({})
+      .sort({ createdAt: -1 })
+      .limit(Number(limit) || 1000)
+      .toArray();
+
+    const headers = template.columns.map((col) => col.header);
+    const rows: string[][] = docs.map((doc) =>
+      template.columns.map((col) => {
+        const value = (doc as Record<string, unknown>)[col.key];
+        if (value === null || value === undefined) return '';
+        if (
+          typeof value === 'string' ||
+          typeof value === 'number' ||
+          typeof value === 'boolean'
+        ) {
+          return String(value);
+        }
+        if (value instanceof Date && !Number.isNaN(value.getTime())) {
+          return value.toISOString().slice(0, 10);
+        }
+        return '';
+      }),
+    );
+
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    worksheet['!cols'] = template.columns.map((col) => ({
+      wch: col.width || 15,
+    }));
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Data');
+
+    const excelBuffer = XLSX.write(workbook, {
+      type: 'buffer',
+      bookType: 'xlsx',
+    }) as Buffer;
+
+    return excelBuffer;
+  }
+
+  /**
    * Upload Excel, validate and persist into MongoDB
    */
   async processExcelUpload(
     templateName: string,
     buffer: Buffer,
   ): Promise<{ message: string; processed: number; errors: string[] }> {
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet);
+
+    const template = this.getTemplateInfo(templateName);
+    const headerKeys = template.columns.map((c) => c.key);
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, {
+      header: headerKeys,
+      range: 1, // skip header row
+      defval: '',
+      raw: false,
+    });
 
     const errors: string[] = [];
     const docs: any[] = [];
@@ -424,6 +482,7 @@ export class FileService {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(Number(limit));
+
     return cursor.toArray();
   }
 

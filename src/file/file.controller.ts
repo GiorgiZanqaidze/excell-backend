@@ -37,7 +37,7 @@ const excelFileFilter = (
   ) {
     cb(null, true);
   } else {
-    cb(new Error('Only Excel files are allowed') as any, false);
+    cb(null, false);
   }
 };
 
@@ -156,6 +156,39 @@ export class FileController {
     }
   }
 
+  @Get('export/:templateName')
+  @ApiOperation({ summary: 'Export real data to Excel' })
+  @ApiParam({ name: 'templateName', example: 'users' })
+  @ApiQuery({ name: 'limit', required: false, example: 1000 })
+  @ApiProduces(
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  )
+  @ApiResponse({ status: 200, description: 'Excel file download' })
+  async exportData(
+    @Param('templateName') templateName: string,
+    @Query('limit') limit = 1000,
+    @Res() res: Response,
+  ) {
+    try {
+      const buffer = await this.fileService.exportDataToExcel(
+        templateName,
+        Number(limit),
+      );
+
+      res.set({
+        'Content-Type':
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="${templateName}_export.xlsx"`,
+        'Content-Length': buffer.length,
+      });
+
+      res.send(buffer);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new HttpException(message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
   @Post('upload/:templateName')
   @ApiOperation({ summary: 'Upload Excel and persist to DB' })
   @ApiParam({ name: 'templateName', example: 'users' })
@@ -176,6 +209,35 @@ export class FileController {
     }),
   )
   async upload(
+    @Param('templateName') templateName: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new HttpException('No file uploaded', HttpStatus.BAD_REQUEST);
+    }
+    return this.fileService.processExcelUpload(templateName, file.buffer);
+  }
+
+  @Post('import/:templateName')
+  @ApiOperation({ summary: 'Import Excel file (alias of upload)' })
+  @ApiParam({ name: 'templateName', example: 'users' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Excel file payload',
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      fileFilter: excelFileFilter,
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  async import(
     @Param('templateName') templateName: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
