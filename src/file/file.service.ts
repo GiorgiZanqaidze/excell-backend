@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, LoggerService } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiProperty } from '@nestjs/swagger';
 import * as XLSX from 'xlsx';
 import { MongoService } from '../mongo/mongo.service';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 
 export class TemplateColumn {
   @ApiProperty({
@@ -85,6 +86,8 @@ export class FileService {
   constructor(
     private readonly configService: ConfigService,
     private readonly mongo: MongoService,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER)
+    private readonly logger: LoggerService,
   ) {}
 
   /**
@@ -246,10 +249,15 @@ export class FileService {
     templateName: string,
     includeSampleData = false,
   ): Buffer {
+    const startedAt = Date.now();
     const templates = this.getAvailableTemplates();
     const template = templates.find((t) => t.name === templateName);
 
     if (!template) {
+      this.logger.warn({
+        message: 'template.generate.not_found',
+        templateName,
+      });
       throw new Error(`Template '${templateName}' not found`);
     }
 
@@ -350,6 +358,14 @@ export class FileService {
       bookType: 'xlsx',
     }) as Buffer;
 
+    this.logger.log({
+      message: 'template.generate.success',
+      templateName,
+      includeSample: includeSampleData,
+      durationMs: Date.now() - startedAt,
+      size: excelBuffer.length,
+    });
+
     return excelBuffer;
   }
 
@@ -361,6 +377,7 @@ export class FileService {
     const template = templates.find((t) => t.name === templateName);
 
     if (!template) {
+      this.logger.warn({ message: 'template.info.not_found', templateName });
       throw new Error(`Template '${templateName}' not found`);
     }
 
@@ -371,6 +388,7 @@ export class FileService {
    * Export real data from MongoDB to Excel
    */
   async exportDataToExcel(templateName: string, limit = 1000): Promise<Buffer> {
+    const startedAt = Date.now();
     const template = this.getTemplateInfo(templateName);
 
     const collection = this.mongo.getCollection(
@@ -414,6 +432,15 @@ export class FileService {
       bookType: 'xlsx',
     }) as Buffer;
 
+    this.logger.log({
+      message: 'export.success',
+      templateName,
+      limit: Number(limit) || 1000,
+      exportedCount: docs.length,
+      durationMs: Date.now() - startedAt,
+      size: excelBuffer.length,
+    });
+
     return excelBuffer;
   }
 
@@ -424,6 +451,13 @@ export class FileService {
     templateName: string,
     buffer: Buffer,
   ): Promise<{ message: string; processed: number; errors: string[] }> {
+    const startedAt = Date.now();
+    this.logger.log({
+      message: 'upload.process.start',
+      templateName,
+      size: buffer.length,
+    });
+
     const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
@@ -465,14 +499,36 @@ export class FileService {
       await collection.insertMany(docs);
     }
 
-    return {
+    const result = {
       message: `Processed ${docs.length} of ${rows.length} rows`,
       processed: docs.length,
       errors,
     };
+
+    if (errors.length > 0) {
+      this.logger.warn({
+        message: 'upload.process.partial',
+        templateName,
+        processed: docs.length,
+        total: rows.length,
+        errorsCount: errors.length,
+        durationMs: Date.now() - startedAt,
+      });
+    } else {
+      this.logger.log({
+        message: 'upload.process.success',
+        templateName,
+        processed: docs.length,
+        total: rows.length,
+        durationMs: Date.now() - startedAt,
+      });
+    }
+
+    return result;
   }
 
   async getData(templateName: string, page = 1, limit = 10): Promise<any[]> {
+    const startedAt = Date.now();
     const collection = this.mongo.getCollection(
       templateName === 'users' ? 'users' : 'products',
     );
@@ -483,7 +539,16 @@ export class FileService {
       .skip(skip)
       .limit(Number(limit));
 
-    return cursor.toArray();
+    const data = await cursor.toArray();
+    this.logger.log({
+      message: 'data.fetch.success',
+      templateName,
+      page: Number(page),
+      limit: Number(limit),
+      returned: data.length,
+      durationMs: Date.now() - startedAt,
+    });
+    return data;
   }
 
   private parseBoolean(value: unknown): boolean | undefined {
