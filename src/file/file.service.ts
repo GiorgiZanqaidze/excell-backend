@@ -523,7 +523,7 @@ export class FileService {
     if (value === undefined || value === null || value === '') {
       throw new Error(`Field '${name}' is required`);
     }
-    return value as T;
+    return value;
   }
 
   private mapUserRow(row: Record<string, unknown>) {
