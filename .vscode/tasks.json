@@ -181,6 +181,34 @@
       },
       "problemMatcher": ["$tsc-watch"],
       "detail": "Start NestJS server in debug mode"
+    },
+    {
+      "label": "Run DB Migration",
+      "type": "npm",
+      "script": "migrate",
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      },
+      "problemMatcher": [],
+      "detail": "Create collections and indexes (users/products)"
+    },
+    {
+      "label": "Seed Sample Data",
+      "type": "npm",
+      "script": "seed",
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      },
+      "problemMatcher": [],
+      "detail": "Insert 5 sample users and 5 sample products"
     }
   ]
 }
