@@ -218,35 +218,6 @@ export class FileController {
     return this.fileService.processExcelUpload(templateName, file.buffer);
   }
 
-  @Post('import/:templateName')
-  @ApiOperation({ summary: 'Import Excel file (alias of upload)' })
-  @ApiParam({ name: 'templateName', example: 'users' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    description: 'Excel file payload',
-    schema: {
-      type: 'object',
-      properties: {
-        file: { type: 'string', format: 'binary' },
-      },
-    },
-  })
-  @UseInterceptors(
-    FileInterceptor('file', {
-      fileFilter: excelFileFilter,
-      limits: { fileSize: 10 * 1024 * 1024 },
-    }),
-  )
-  async import(
-    @Param('templateName') templateName: string,
-    @UploadedFile() file: Express.Multer.File,
-  ) {
-    if (!file) {
-      throw new HttpException('No file uploaded', HttpStatus.BAD_REQUEST);
-    }
-    return this.fileService.processExcelUpload(templateName, file.buffer);
-  }
-
   @Get('data/:templateName')
   @ApiOperation({ summary: 'Get paginated data from DB' })
   @ApiParam({ name: 'templateName', example: 'users' })
