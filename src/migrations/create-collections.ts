@@ -1,6 +1,7 @@
 import { MongoClient, type Db } from 'mongodb';
 import { USERS_COLLECTION } from '../file/entities/user.entity';
 import { PRODUCTS_COLLECTION } from '../file/entities/product.entity';
+import { LOGS_COLLECTION } from '../logging/entities/log-entry.entity';
 
 async function ensureCollection(db: Db, name: string): Promise<void> {
   const exists = await db.listCollections({ name }).hasNext();
@@ -27,6 +28,7 @@ async function run(): Promise<void> {
     // Ensure collections exist
     await ensureCollection(db, USERS_COLLECTION);
     await ensureCollection(db, PRODUCTS_COLLECTION);
+    await ensureCollection(db, LOGS_COLLECTION);
 
     // Create indexes (idempotent)
     await db
@@ -38,6 +40,14 @@ async function run(): Promise<void> {
       .collection(PRODUCTS_COLLECTION)
       .createIndex({ sku: 1 }, { unique: true });
     await db.collection(PRODUCTS_COLLECTION).createIndex({ createdAt: -1 });
+
+    // Logs indexes (level, timestamp, requestId)
+    await db
+      .collection(LOGS_COLLECTION)
+      .createIndex({ level: 1, timestamp: -1 });
+    await db
+      .collection(LOGS_COLLECTION)
+      .createIndex({ requestId: 1, timestamp: -1 });
 
     console.log('Migration completed successfully.');
   } finally {
