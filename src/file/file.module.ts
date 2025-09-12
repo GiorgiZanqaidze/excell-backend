@@ -5,12 +5,15 @@ import {
   Inject,
   LoggerService,
 } from '@nestjs/common';
+import type { ModuleMetadata } from '@nestjs/common';
 import { FileController } from './file.controller';
 import { FileService } from './file.service';
 import { MongoService } from '../mongo/mongo.service';
 import { USERS_COLLECTION, type User } from './entities/user.entity';
 import { PRODUCTS_COLLECTION, type Product } from './entities/product.entity';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
+import { BullModule } from '@nestjs/bullmq';
+import { FileProcessor } from './file.processor';
 
 @Injectable()
 class FileCollectionsInitializer implements OnModuleInit {
@@ -65,7 +68,17 @@ class FileCollectionsInitializer implements OnModuleInit {
 }
 
 @Module({
+  imports: [
+    BullModule.registerQueue({
+      name: 'file',
+      prefix: 'excell',
+      defaultJobOptions: {
+        removeOnComplete: true,
+        attempts: 1,
+      },
+    }),
+  ] as ModuleMetadata['imports'],
   controllers: [FileController],
-  providers: [FileService, FileCollectionsInitializer],
+  providers: [FileService, FileCollectionsInitializer, FileProcessor],
 })
 export class FileModule {}

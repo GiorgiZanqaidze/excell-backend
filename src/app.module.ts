@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { MongoModule } from './mongo/mongo.module';
 import { FileModule } from './file/file.module';
 import { LoggingModule } from './logging/logging.module';
+import { BullmqModule } from './bullmq/bullmq.module';
 
 @Module({
   imports: [
@@ -10,6 +11,7 @@ import { LoggingModule } from './logging/logging.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    BullmqModule,
     LoggingModule,
     MongoModule,
     FileModule,

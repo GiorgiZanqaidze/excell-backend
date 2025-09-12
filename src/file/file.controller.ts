@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
 import {
   Controller,
   Get,
@@ -24,6 +25,9 @@ import { Response, Request } from 'express';
 import { FileService, ExcelTemplate } from './file.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { FileFilterCallback } from 'multer';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue, JobsOptions } from 'bullmq';
+type FileJobPayload = { templateName: string; buffer: string };
 
 const excelFileFilter = (
   req: Request,
@@ -44,7 +48,11 @@ const excelFileFilter = (
 @ApiTags('file')
 @Controller('file')
 export class FileController {
-  constructor(private readonly fileService: FileService) {}
+  constructor(
+    private readonly fileService: FileService,
+    @InjectQueue('file')
+    private readonly fileQueue: Queue<FileJobPayload, unknown, string>,
+  ) {}
 
   @Get('templates')
   @ApiOperation({
@@ -216,6 +224,66 @@ export class FileController {
       throw new HttpException('No file uploaded', HttpStatus.BAD_REQUEST);
     }
     return this.fileService.processExcelUpload(templateName, file.buffer);
+  }
+
+  @Post('upload/:templateName/async')
+  @ApiOperation({ summary: 'Upload Excel asynchronously using BullMQ' })
+  @ApiParam({ name: 'templateName', example: 'users' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Excel file payload',
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      fileFilter: excelFileFilter,
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  async uploadAsync(
+    @Param('templateName') templateName: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new HttpException('No file uploaded', HttpStatus.BAD_REQUEST);
+    }
+    const options: JobsOptions = {
+      removeOnComplete: true,
+      attempts: 1,
+    };
+    const job = await this.fileQueue.add(
+      'upload-excel',
+      {
+        templateName,
+        buffer: file.buffer.toString('base64'),
+      },
+      options,
+    );
+
+    return { jobId: job.id, status: 'queued' };
+  }
+
+  @Get('jobs/:id')
+  @ApiOperation({ summary: 'Get job status/result' })
+  @ApiParam({ name: 'id', description: 'Job ID' })
+  async getJobStatus(@Param('id') id: string) {
+    const job = await this.fileQueue.getJob(id);
+    if (!job) {
+      throw new HttpException('Job not found', HttpStatus.NOT_FOUND);
+    }
+
+    const state = await job.getState();
+    const progress = job.progress;
+    const attemptsMade = job.attemptsMade;
+    const returnvalue = job.returnvalue;
+    const failedReason = job.failedReason;
+
+    return { id, state, progress, attemptsMade, returnvalue, failedReason };
   }
 
   @Get('data/:templateName')
