@@ -19,6 +19,10 @@ API for generating Excel templates and processing uploaded Excel files into Mong
 - **Basic Tests** — unit/e2e boilerplate.
 - **Structured Logging** — Winston (console with colors, files with rotation, optional MongoDB transport).
 
+## 🧩 Frontend Integration
+
+See the conversational guide: [docs/frontend-integration.md](docs/frontend-integration.md)
+
 ---
 
 ## 📂 Project Structure (Actual)
