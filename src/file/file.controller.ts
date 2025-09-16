@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
 import {
   Controller,
   Get,
@@ -53,49 +52,6 @@ export class FileController {
     @InjectQueue('file')
     private readonly fileQueue: Queue<FileJobPayload, unknown, string>,
   ) {}
-
-  @Get('templates')
-  @ApiOperation({
-    summary: 'Get available Excel templates',
-    description:
-      'Returns a list of all available Excel templates with their specifications',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'List of available templates',
-    type: [ExcelTemplate],
-  })
-  getTemplates(): ExcelTemplate[] {
-    return this.fileService.getAvailableTemplates();
-  }
-
-  @Get('templates/:templateName')
-  @ApiOperation({
-    summary: 'Get template information',
-    description: 'Get detailed information about a specific Excel template',
-  })
-  @ApiParam({
-    name: 'templateName',
-    description: 'Name of the template (e.g., users, products)',
-    example: 'users',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Template information',
-    type: ExcelTemplate,
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Template not found',
-  })
-  getTemplateInfo(@Param('templateName') templateName: string): ExcelTemplate {
-    try {
-      return this.fileService.getTemplateInfo(templateName);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new HttpException(message, HttpStatus.NOT_FOUND);
-    }
-  }
 
   @Get('templates/:templateName/download')
   @ApiOperation({
@@ -195,35 +151,6 @@ export class FileController {
       const message = error instanceof Error ? error.message : String(error);
       throw new HttpException(message, HttpStatus.BAD_REQUEST);
     }
-  }
-
-  @Post('upload/:templateName')
-  @ApiOperation({ summary: 'Upload Excel and persist to DB' })
-  @ApiParam({ name: 'templateName', example: 'users' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    description: 'Excel file payload',
-    schema: {
-      type: 'object',
-      properties: {
-        file: { type: 'string', format: 'binary' },
-      },
-    },
-  })
-  @UseInterceptors(
-    FileInterceptor('file', {
-      fileFilter: excelFileFilter,
-      limits: { fileSize: 10 * 1024 * 1024 },
-    }),
-  )
-  async upload(
-    @Param('templateName') templateName: string,
-    @UploadedFile() file: Express.Multer.File,
-  ) {
-    if (!file) {
-      throw new HttpException('No file uploaded', HttpStatus.BAD_REQUEST);
-    }
-    return this.fileService.processExcelUpload(templateName, file.buffer);
   }
 
   @Post('upload/:templateName/async')
