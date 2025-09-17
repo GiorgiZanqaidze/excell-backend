@@ -14,6 +14,7 @@ import { PRODUCTS_COLLECTION, type Product } from './entities/product.entity';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { BullModule } from '@nestjs/bullmq';
 import { FileProcessor } from './file.processor';
+import { WebSocketModule } from '../websocket/websocket.module';
 
 @Injectable()
 class FileCollectionsInitializer implements OnModuleInit {
@@ -69,6 +70,7 @@ class FileCollectionsInitializer implements OnModuleInit {
 
 @Module({
   imports: [
+    WebSocketModule,
     BullModule.registerQueue({
       name: 'file',
       prefix: 'excell',

@@ -4,6 +4,7 @@ import { MongoModule } from './mongo/mongo.module';
 import { FileModule } from './file/file.module';
 import { LoggingModule } from './logging/logging.module';
 import { BullmqModule } from './bullmq/bullmq.module';
+import { WebSocketModule } from './websocket/websocket.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { BullmqModule } from './bullmq/bullmq.module';
     BullmqModule,
     LoggingModule,
     MongoModule,
+    WebSocketModule,
     FileModule,
   ],
 })

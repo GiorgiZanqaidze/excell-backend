@@ -4,6 +4,8 @@ import { ApiProperty } from '@nestjs/swagger';
 import * as XLSX from 'xlsx';
 import { MongoService } from '../mongo/mongo.service';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
+import { WebSocketService } from '../websocket/websocket.service';
+import { UploadStatus } from '../websocket/websocket.enums';
 
 export class TemplateColumn {
   @ApiProperty({
@@ -88,6 +90,7 @@ export class FileService {
     private readonly mongo: MongoService,
     @Inject(WINSTON_MODULE_NEST_PROVIDER)
     private readonly logger: LoggerService,
+    private readonly webSocketService: WebSocketService,
   ) {}
 
   /**
@@ -445,18 +448,31 @@ export class FileService {
   }
 
   /**
-   * Upload Excel, validate and persist into MongoDB
+   * Upload Excel, validate and persist into MongoDB with WebSocket progress updates
    */
   async processExcelUpload(
     templateName: string,
     buffer: Buffer,
+    jobId?: string,
   ): Promise<{ message: string; processed: number; errors: string[] }> {
     const startedAt = Date.now();
     this.logger.log({
       message: 'upload.process.start',
       templateName,
       size: buffer.length,
+      jobId,
     });
+
+    // Emit start progress
+    if (jobId) {
+      this.webSocketService.emitProgress(jobId, {
+        jobId,
+        templateName,
+        status: UploadStatus.STARTED,
+        progress: 0,
+        message: 'Starting file processing...',
+      });
+    }
 
     const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
     const sheetName = workbook.SheetNames[0];
@@ -473,6 +489,20 @@ export class FileService {
 
     const errors: string[] = [];
     const docs: any[] = [];
+    const totalRows = rows.length;
+
+    // Emit processing start
+    if (jobId) {
+      this.webSocketService.emitProgress(jobId, {
+        jobId,
+        templateName,
+        status: UploadStatus.PROCESSING,
+        progress: 10,
+        message: `Processing ${totalRows} rows...`,
+        processed: 0,
+        total: totalRows,
+      });
+    }
 
     for (let index = 0; index < rows.length; index += 1) {
       const row = rows[index];
@@ -490,6 +520,33 @@ export class FileService {
         // +2 because header row + 1-based index
         errors.push(`Row ${index + 2}: ${message}`);
       }
+
+      // Emit progress every 10 rows or at the end
+      if (jobId && (index % 10 === 0 || index === rows.length - 1)) {
+        const progress = Math.round(((index + 1) / totalRows) * 80) + 10; // 10-90%
+        this.webSocketService.emitProgress(jobId, {
+          jobId,
+          templateName,
+          status: UploadStatus.PROCESSING,
+          progress,
+          message: `Processed ${index + 1} of ${totalRows} rows`,
+          processed: index + 1,
+          total: totalRows,
+        });
+      }
+    }
+
+    // Emit database insertion progress
+    if (jobId) {
+      this.webSocketService.emitProgress(jobId, {
+        jobId,
+        templateName,
+        status: UploadStatus.PROCESSING,
+        progress: 90,
+        message: 'Saving to database...',
+        processed: docs.length,
+        total: totalRows,
+      });
     }
 
     if (docs.length > 0) {
@@ -505,6 +562,20 @@ export class FileService {
       errors,
     };
 
+    // Emit completion
+    if (jobId) {
+      this.webSocketService.emitProgress(jobId, {
+        jobId,
+        templateName,
+        status: UploadStatus.COMPLETED,
+        progress: 100,
+        message: `Successfully processed ${docs.length} rows`,
+        processed: docs.length,
+        total: totalRows,
+        errors: errors.length > 0 ? errors : undefined,
+      });
+    }
+
     if (errors.length > 0) {
       this.logger.warn({
         message: 'upload.process.partial',
@@ -513,6 +584,7 @@ export class FileService {
         total: rows.length,
         errorsCount: errors.length,
         durationMs: Date.now() - startedAt,
+        jobId,
       });
     } else {
       this.logger.log({
@@ -521,6 +593,7 @@ export class FileService {
         processed: docs.length,
         total: rows.length,
         durationMs: Date.now() - startedAt,
+        jobId,
       });
     }
 

@@ -21,12 +21,12 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { Response, Request } from 'express';
-import { FileService } from './file.service';
+import { FileService, ExcelTemplate } from './file.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { FileFilterCallback } from 'multer';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue, JobsOptions } from 'bullmq';
-type FileJobPayload = { templateName: string; buffer: string };
+type FileJobPayload = { templateName: string; buffer: string; jobId?: string };
 
 const excelFileFilter = (
   req: Request,
@@ -183,11 +183,13 @@ export class FileController {
       removeOnComplete: true,
       attempts: 1,
     };
+    const jobId = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const job = await this.fileQueue.add(
       'upload-excel',
       {
         templateName,
         buffer: file.buffer.toString('base64'),
+        jobId,
       },
       options,
     );
