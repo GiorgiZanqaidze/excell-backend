@@ -21,7 +21,7 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { Response, Request } from 'express';
-import { FileService, ExcelTemplate } from './file.service';
+import { FileService } from './file.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { FileFilterCallback } from 'multer';
 import { InjectQueue } from '@nestjs/bullmq';
