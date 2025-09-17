@@ -1,31 +1,31 @@
+import { InjectQueue } from '@nestjs/bullmq';
 import {
   Controller,
   Get,
-  Param,
-  Query,
-  Res,
   HttpException,
   HttpStatus,
+  Param,
   Post,
+  Query,
+  Res,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiParam,
-  ApiQuery,
-  ApiProduces,
-  ApiConsumes,
-  ApiBody,
-} from '@nestjs/swagger';
-import { Response, Request } from 'express';
-import { FileService, ExcelTemplate } from './file.service';
 import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiParam,
+  ApiProduces,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { JobsOptions, Queue } from 'bullmq';
+import { Request, Response } from 'express';
 import type { FileFilterCallback } from 'multer';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue, JobsOptions } from 'bullmq';
+import { FileService } from './file.service';
 type FileJobPayload = { templateName: string; buffer: string; jobId?: string };
 
 const excelFileFilter = (

@@ -1,18 +1,17 @@
+import type { LoggerService } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
+  ConnectedSocket,
+  MessageBody,
+  OnGatewayInit,
+  SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
-  SubscribeMessage,
-  MessageBody,
-  ConnectedSocket,
-  OnGatewayInit,
 } from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
-import { Injectable, Logger } from '@nestjs/common';
-import { Inject } from '@nestjs/common';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
-import type { LoggerService } from '@nestjs/common';
-import { WebSocketService } from './websocket.service';
+import { Server, Socket } from 'socket.io';
 import { WebSocketEvents, WebSocketRooms } from './websocket.enums';
+import { WebSocketService } from './websocket.service';
 
 @WebSocketGateway({
   cors: {
