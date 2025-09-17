@@ -1,29 +1,32 @@
+import { InjectQueue } from '@nestjs/bullmq';
 import {
   Controller,
   Get,
-  Param,
-  Query,
-  Res,
   HttpException,
   HttpStatus,
+  Param,
   Post,
+  Query,
+  Res,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiParam,
-  ApiQuery,
-  ApiProduces,
-  ApiConsumes,
-  ApiBody,
-} from '@nestjs/swagger';
-import { Response, Request } from 'express';
-import { FileService, ExcelTemplate } from './file.service';
 import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiParam,
+  ApiProduces,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { JobsOptions, Queue } from 'bullmq';
+import { Request, Response } from 'express';
 import type { FileFilterCallback } from 'multer';
+import { FileService } from './file.service';
+type FileJobPayload = { templateName: string; buffer: string; jobId?: string };
 
 const excelFileFilter = (
   req: Request,
@@ -44,50 +47,11 @@ const excelFileFilter = (
 @ApiTags('file')
 @Controller('file')
 export class FileController {
-  constructor(private readonly fileService: FileService) {}
-
-  @Get('templates')
-  @ApiOperation({
-    summary: 'Get available Excel templates',
-    description:
-      'Returns a list of all available Excel templates with their specifications',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'List of available templates',
-    type: [ExcelTemplate],
-  })
-  getTemplates(): ExcelTemplate[] {
-    return this.fileService.getAvailableTemplates();
-  }
-
-  @Get('templates/:templateName')
-  @ApiOperation({
-    summary: 'Get template information',
-    description: 'Get detailed information about a specific Excel template',
-  })
-  @ApiParam({
-    name: 'templateName',
-    description: 'Name of the template (e.g., users, products)',
-    example: 'users',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Template information',
-    type: ExcelTemplate,
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Template not found',
-  })
-  getTemplateInfo(@Param('templateName') templateName: string): ExcelTemplate {
-    try {
-      return this.fileService.getTemplateInfo(templateName);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new HttpException(message, HttpStatus.NOT_FOUND);
-    }
-  }
+  constructor(
+    private readonly fileService: FileService,
+    @InjectQueue('file')
+    private readonly fileQueue: Queue<FileJobPayload, unknown, string>,
+  ) {}
 
   @Get('templates/:templateName/download')
   @ApiOperation({
@@ -189,8 +153,8 @@ export class FileController {
     }
   }
 
-  @Post('upload/:templateName')
-  @ApiOperation({ summary: 'Upload Excel and persist to DB' })
+  @Post('upload/:templateName/async')
+  @ApiOperation({ summary: 'Upload Excel asynchronously using BullMQ' })
   @ApiParam({ name: 'templateName', example: 'users' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -208,43 +172,47 @@ export class FileController {
       limits: { fileSize: 10 * 1024 * 1024 },
     }),
   )
-  async upload(
+  async uploadAsync(
     @Param('templateName') templateName: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
     if (!file) {
       throw new HttpException('No file uploaded', HttpStatus.BAD_REQUEST);
     }
-    return this.fileService.processExcelUpload(templateName, file.buffer);
+    const options: JobsOptions = {
+      removeOnComplete: true,
+      attempts: 1,
+    };
+    const jobId = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const job = await this.fileQueue.add(
+      'upload-excel',
+      {
+        templateName,
+        buffer: file.buffer.toString('base64'),
+        jobId,
+      },
+      options,
+    );
+
+    return { jobId: job.id, status: 'queued' };
   }
 
-  @Post('import/:templateName')
-  @ApiOperation({ summary: 'Import Excel file (alias of upload)' })
-  @ApiParam({ name: 'templateName', example: 'users' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    description: 'Excel file payload',
-    schema: {
-      type: 'object',
-      properties: {
-        file: { type: 'string', format: 'binary' },
-      },
-    },
-  })
-  @UseInterceptors(
-    FileInterceptor('file', {
-      fileFilter: excelFileFilter,
-      limits: { fileSize: 10 * 1024 * 1024 },
-    }),
-  )
-  async import(
-    @Param('templateName') templateName: string,
-    @UploadedFile() file: Express.Multer.File,
-  ) {
-    if (!file) {
-      throw new HttpException('No file uploaded', HttpStatus.BAD_REQUEST);
+  @Get('jobs/:id')
+  @ApiOperation({ summary: 'Get job status/result' })
+  @ApiParam({ name: 'id', description: 'Job ID' })
+  async getJobStatus(@Param('id') id: string) {
+    const job = await this.fileQueue.getJob(id);
+    if (!job) {
+      throw new HttpException('Job not found', HttpStatus.NOT_FOUND);
     }
-    return this.fileService.processExcelUpload(templateName, file.buffer);
+
+    const state = await job.getState();
+    const progress = job.progress;
+    const attemptsMade = job.attemptsMade;
+    const returnvalue = job.returnvalue;
+    const failedReason = job.failedReason;
+
+    return { id, state, progress, attemptsMade, returnvalue, failedReason };
   }
 
   @Get('data/:templateName')

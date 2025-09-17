@@ -1,33 +1,36 @@
 # Excel Backend (NestJS)
 
-ეს არის Excel ფაილების შაბლონების გენერაციისა და ატვირთული Excel-ის დამუშავება/შენახვისთვის შექმნილი API **NestJS**-ზე. სისტემა ქმნის შაბლონს, ამოწმებს ატვირთულ მონაცემს და ინახავს MongoDB-ში.
+API for generating Excel templates and processing uploaded Excel files into MongoDB. The system can generate a template, validate uploaded data, and store it in MongoDB. It also supports exporting data to Excel.
 
 ---
 
-## 🚀 შესაძლებლობები
+## 🚀 Features
 
-- **Excel შაბლონები**
-  - `.xlsx` შაბლონის გენერაცია და გადმოწერა (`/file/templates/:templateName/download`).
-  - სვეტების აღწერა და მაგალითები Swagger-ში.
-- **Excel იმპორტი MongoDB-ში**
-  - `.xlsx` ატვირთვა (`/file/upload/:templateName`).
-  - ველების ტიპების მარტივი ვალიდაცია და შეცდომების ჩამონათვალი.
-- **Swagger დოკუმენტაცია** — `/api`.
-- **Docker მხარდაჭერა** — `Dockerfile` და `docker-compose.yml`.
-- **საწყისი ტესტები** — unit/e2e boilerplate.
+- **Excel Templates**
+  - Generate and download `.xlsx` templates (`/file/templates/:templateName/download`).
+  - Column descriptions and examples in Swagger.
+- **Excel Import to MongoDB**
+  - Upload `.xlsx` (`/file/upload/:templateName`).
+  - Simple type validation and aggregated error list.
+- **Excel Export**
+  - Export existing data to `.xlsx` (`GET /file/export/:templateName?limit=`).
+- **Swagger Docs** — available under `/api`.
+- **Docker Support** — `Dockerfile` and `docker-compose.yml`.
+- **Basic Tests** — unit/e2e boilerplate.
+- **Structured Logging** — Winston (console with colors, files with rotation, optional MongoDB transport).
 
-შენიშვნა: ამ ეტაპზე JSON→Excel „ექსპორტის“ ენდპოინტი არ არის განხორციელებული (შაბლონის გენერაცია და იმპორტი არის გაშვებული ნაწილი).
+## 🧩 Frontend Integration
+
+See the conversational guide: [docs/frontend-integration.md](docs/frontend-integration.md)
 
 ---
 
-## 📂 პროექტის სტრუქტურა (ფაქტობრივი)
+## 📂 Project Structure (Actual)
 
 ```
 excell-backend/
 ├─ src/
-│  ├─ app.controller.ts
 │  ├─ app.module.ts
-│  ├─ app.service.ts
 │  ├─ main.ts
 │  ├─ file/
 │  │  ├─ file.controller.ts
@@ -35,6 +38,11 @@ excell-backend/
 │  │  ├─ file.service.ts
 │  │  ├─ dto/
 │  │  └─ interfaces/
+│  ├─ logging/
+│  │  ├─ logging.module.ts
+│  │  ├─ logging.interceptor.ts
+│  │  ├─ request-id.middleware.ts
+│  │  └─ entities/log-entry.entity.ts
 │  └─ mongo/
 │     ├─ mongo.module.ts
 │     └─ mongo.service.ts
@@ -48,32 +56,32 @@ excell-backend/
 
 ---
 
-## ⚙️ გარემოს მომზადება (Development)
+## ⚙️ Development Setup
 
-1. წინაპირობები: Node.js 18+, npm, MongoDB (ლოკალურად ან დოკერით)
+1. Prerequisites: Node.js 18+, npm, MongoDB (local or Docker)
 
-2. გარემოს ცვლადები:
+2. Environment variables:
 
 ```
 cp env.example .env
 ```
 
-მაშინვე საკვანძოა `MONGO_URI` ან `MONGO_HOST/MONGO_PORT/MONGO_DB`. იხილეთ `env.example`.
+Configure `MONGO_URI` or `MONGO_HOST/MONGO_PORT/MONGO_DB`. See `env.example`.
 
-3. ინსტალაცია და გაშვება:
+3. Install & run:
 
 ```
 npm ci
 npm run start:dev
 ```
 
-აპი გაიშვება ნაგულისხმევად `http://localhost:3000`-ზე. Swagger: `http://localhost:3000/api`.
+API runs on `http://localhost:3000`. Swagger: `http://localhost:3000/api`.
 
 ---
 
 ## 🐳 Docker / Compose
 
-ლოკალური გაშვება Mongo-სთან ერთად:
+Local run with Mongo:
 
 ```
 docker compose up -d --build
@@ -83,45 +91,52 @@ docker compose up -d --build
 - Swagger: `http://localhost:3000/api`
 - Mongo: `mongodb://localhost:27017`
 
-შემხედვარე ცვლადები იხილეთ `docker-compose.yml`-ში (`PORT`, `MONGO_URI`, …).
+See `docker-compose.yml` for envs (`PORT`, `MONGO_URI`, …).
 
 ---
 
-## 📘 API ენდპოინტები (მთავარი)
+## 📘 Main API Endpoints
 
-- `GET /` — ჰელთჩეკი
-- `GET /file/templates` — ხელმისაწვდომი შაბლონები
-- `GET /file/templates/:templateName` — შაბლონის დეტალები
-- `GET /file/templates/:templateName/download?includeSample=true|false` — Excel შაბლონის გადმოწერა
-- `POST /file/upload/:templateName` — Excel-ის ატვირთვა და MongoDB-ში შენახვა
-- `GET /file/data/:templateName?page=&limit=` — გვერდითობით მიღება DB-დან
+- `GET /` — healthcheck
+- `GET /file/templates` — list available templates
+- `GET /file/templates/:templateName` — template details
+- `GET /file/templates/:templateName/download?includeSample=true|false` — download template
+- `POST /file/upload/:templateName` — upload Excel and persist to MongoDB
+- `GET /file/export/:templateName?limit=` — export data to Excel
+- `GET /file/data/:templateName?page=&limit=` — paginated fetch from DB
 
-Swagger დოკუმენტაცია მოიცავს სქემებს (`ExcelTemplate`, სვეტების აღწერები და სხვ.).
+Swagger includes schemas (`ExcelTemplate`, column specs, etc.).
 
 ---
 
-## ✍️ მაგალითები
+## ✍️ Examples
 
-შაბლონების სია:
+List templates:
 
 ```
 curl http://localhost:3000/file/templates
 ```
 
-კონკრეტული შაბლონის გადმოწერა (მაგ. users):
+Download a specific template (e.g., users):
 
 ```
 curl -L "http://localhost:3000/file/templates/users/download?includeSample=true" -o users_template.xlsx
 ```
 
-ატვირთვა (users):
+Upload (users):
 
 ```
 curl -X POST "http://localhost:3000/file/upload/users" \
   -F "file=@./users_template.xlsx"
 ```
 
-მონაცემების მიღება:
+Export (users):
+
+```
+curl -L "http://localhost:3000/file/export/users?limit=1000" -o users_export.xlsx
+```
+
+Fetch data:
 
 ```
 curl "http://localhost:3000/file/data/users?page=1&limit=10"
@@ -129,22 +144,22 @@ curl "http://localhost:3000/file/data/users?page=1&limit=10"
 
 ---
 
-## 🧩 Excel შაბლონები (ამჟამინდელი)
+## 🧩 Current Excel Templates
 
-ხელმისაწვდომი შაბლონები: `users`, `products`.
+Available: `users`, `products`.
 
-- `users` სვეტები: `firstName` (required), `lastName` (required), `email` (required), `phone`, `birthDate` (date), `isActive` (boolean)
-- `products` სვეტები: `name` (required), `sku` (required), `price` (number, required), `category` (required), `stock` (number), `description`
+- `users` columns: `firstName` (required), `lastName` (required), `email` (required), `phone`, `birthDate` (date), `isActive` (boolean)
+- `products` columns: `name` (required), `sku` (required), `price` (number, required), `category` (required), `stock` (number), `description`
 
-ფაილის შევსების წესები:
+Filling rules:
 
-- თარიღი: `YYYY-MM-DD`
+- Date: `YYYY-MM-DD`
 - Boolean: `true/false`
-- რიცხვები: ათწილადი წერტილით, напр. `999.99`
+- Numbers: decimal point, e.g., `999.99`
 
 ---
 
-## 🧪 ტესტირება / ხარისხი
+## 🧪 Testing / Quality
 
 ```
 npm run test
@@ -154,35 +169,35 @@ npm run format
 
 ---
 
-## 🗄️ მიგრაცია (Collections + Indexes)
+## 🗄️ Migration (Collections + Indexes)
 
-საჭირო კოლექციებისა და ინდექსების შექმნა:
+Create collections and indexes:
 
 ```
 npm run migrate
 ```
 
-მიგრაცია ეყრდნობა `.env`-ს (`MONGO_URI` ან `MONGO_HOST/MONGO_PORT/MONGO_DB`).
+Relies on `.env` (`MONGO_URI` or `MONGO_HOST/MONGO_PORT/MONGO_DB`).
 
 ---
 
-## 🌱 Seed (ნიმუშ მონაცემები)
+## 🌱 Seed (Sample Data)
 
-საწყისი მონაცემების ჩატვირთვა (5 users, 5 products):
+Load sample data (5 users, 5 products):
 
 ```
 npm run seed
 ```
 
-სკრიპტი არ გადაიწერს არსებულ მონაცემებს — თუ კოლექცია ცარიელი არაა, გამოტოვებს ჩატვირთვას.
+Skips seeding if collections are not empty.
 
 ---
 
-## ⚠️ ცნობილი საკითხები და გეგმები
+## ⚠️ Known Issues & Roadmap
 
-- ჰედერების შესაბამისობა: გენერირებული შაბლონი იყენებს ადამიანის-წასაკითხ სათაურებს ( напр. "First Name"), ხოლო იმპორტი ელოდება ველების `key`-ებს ( напр. `firstName`). ეს შეიძლება იწვევდეს ვალიდაციის შეცდომებს. გეგმაშია შაბლონიდან პირდაპირ სწორი `key`-ების ბაინდინგი იმპორტისას.
-- Excel თარიღები: საჭიროებია `cellDates: true` და serial-to-date სწორად დამუშავება, რათა ყველა სცენარი სწორად იმუშაოს.
-- ატვირთვის ლიმიტები/ფილტრები: `env.example`-ში აღწერილი პარამეტრები ინტეგრირდება ატვირთვის ინტერსეპტორში.
-- Mongo ინდექსები: რეკომენდირებულია უნიკალური ინდექსები (`users.email`, `products.sku`) და `createdAt` ინდექსი წარმადობისთვის.
+- Headers consistency: generated template uses human-readable headers (e.g., "First Name"), while import expects field keys (e.g., `firstName`). Planned: direct binding of headers to keys during import.
+- Excel dates: ensure `cellDates: true` and proper serial-to-date handling for all scenarios.
+- Upload limits/filters: parameters from `env.example` to be fully integrated into upload interceptor.
+- Mongo indexes: recommended unique indexes (`users.email`, `products.sku`) and `createdAt` index for performance.
 
-მოცემული README ასახავს მიმდინარე სტატუსს და გზას შემდგომი გაუმჯობესებებისკენ.
+This README reflects the current status and next steps for improvements.

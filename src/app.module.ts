@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { MongoModule } from './mongo/mongo.module';
 import { FileModule } from './file/file.module';
+import { LoggingModule } from './logging/logging.module';
+import { BullmqModule } from './bullmq/bullmq.module';
+import { WebSocketModule } from './websocket/websocket.module';
 
 @Module({
   imports: [
@@ -11,10 +12,11 @@ import { FileModule } from './file/file.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    BullmqModule,
+    LoggingModule,
     MongoModule,
+    WebSocketModule,
     FileModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}

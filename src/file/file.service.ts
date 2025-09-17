@@ -1,8 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, LoggerService } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiProperty } from '@nestjs/swagger';
 import * as XLSX from 'xlsx';
 import { MongoService } from '../mongo/mongo.service';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
+import { WebSocketService } from '../websocket/websocket.service';
+import { UploadStatus } from '../websocket/websocket.enums';
 
 export class TemplateColumn {
   @ApiProperty({
@@ -85,6 +88,9 @@ export class FileService {
   constructor(
     private readonly configService: ConfigService,
     private readonly mongo: MongoService,
+    @Inject(WINSTON_MODULE_NEST_PROVIDER)
+    private readonly logger: LoggerService,
+    private readonly webSocketService: WebSocketService,
   ) {}
 
   /**
@@ -246,10 +252,15 @@ export class FileService {
     templateName: string,
     includeSampleData = false,
   ): Buffer {
+    const startedAt = Date.now();
     const templates = this.getAvailableTemplates();
     const template = templates.find((t) => t.name === templateName);
 
     if (!template) {
+      this.logger.warn({
+        message: 'template.generate.not_found',
+        templateName,
+      });
       throw new Error(`Template '${templateName}' not found`);
     }
 
@@ -350,6 +361,14 @@ export class FileService {
       bookType: 'xlsx',
     }) as Buffer;
 
+    this.logger.log({
+      message: 'template.generate.success',
+      templateName,
+      includeSample: includeSampleData,
+      durationMs: Date.now() - startedAt,
+      size: excelBuffer.length,
+    });
+
     return excelBuffer;
   }
 
@@ -361,6 +380,7 @@ export class FileService {
     const template = templates.find((t) => t.name === templateName);
 
     if (!template) {
+      this.logger.warn({ message: 'template.info.not_found', templateName });
       throw new Error(`Template '${templateName}' not found`);
     }
 
@@ -371,6 +391,7 @@ export class FileService {
    * Export real data from MongoDB to Excel
    */
   async exportDataToExcel(templateName: string, limit = 1000): Promise<Buffer> {
+    const startedAt = Date.now();
     const template = this.getTemplateInfo(templateName);
 
     const collection = this.mongo.getCollection(
@@ -414,16 +435,45 @@ export class FileService {
       bookType: 'xlsx',
     }) as Buffer;
 
+    this.logger.log({
+      message: 'export.success',
+      templateName,
+      limit: Number(limit) || 1000,
+      exportedCount: docs.length,
+      durationMs: Date.now() - startedAt,
+      size: excelBuffer.length,
+    });
+
     return excelBuffer;
   }
 
   /**
-   * Upload Excel, validate and persist into MongoDB
+   * Upload Excel, validate and persist into MongoDB with WebSocket progress updates
    */
   async processExcelUpload(
     templateName: string,
     buffer: Buffer,
+    jobId?: string,
   ): Promise<{ message: string; processed: number; errors: string[] }> {
+    const startedAt = Date.now();
+    this.logger.log({
+      message: 'upload.process.start',
+      templateName,
+      size: buffer.length,
+      jobId,
+    });
+
+    // Emit start progress
+    if (jobId) {
+      this.webSocketService.emitProgress(jobId, {
+        jobId,
+        templateName,
+        status: UploadStatus.STARTED,
+        progress: 0,
+        message: 'Starting file processing...',
+      });
+    }
+
     const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
@@ -439,6 +489,20 @@ export class FileService {
 
     const errors: string[] = [];
     const docs: any[] = [];
+    const totalRows = rows.length;
+
+    // Emit processing start
+    if (jobId) {
+      this.webSocketService.emitProgress(jobId, {
+        jobId,
+        templateName,
+        status: UploadStatus.PROCESSING,
+        progress: 10,
+        message: `Processing ${totalRows} rows...`,
+        processed: 0,
+        total: totalRows,
+      });
+    }
 
     for (let index = 0; index < rows.length; index += 1) {
       const row = rows[index];
@@ -456,6 +520,33 @@ export class FileService {
         // +2 because header row + 1-based index
         errors.push(`Row ${index + 2}: ${message}`);
       }
+
+      // Emit progress every 10 rows or at the end
+      if (jobId && (index % 10 === 0 || index === rows.length - 1)) {
+        const progress = Math.round(((index + 1) / totalRows) * 80) + 10; // 10-90%
+        this.webSocketService.emitProgress(jobId, {
+          jobId,
+          templateName,
+          status: UploadStatus.PROCESSING,
+          progress,
+          message: `Processed ${index + 1} of ${totalRows} rows`,
+          processed: index + 1,
+          total: totalRows,
+        });
+      }
+    }
+
+    // Emit database insertion progress
+    if (jobId) {
+      this.webSocketService.emitProgress(jobId, {
+        jobId,
+        templateName,
+        status: UploadStatus.PROCESSING,
+        progress: 90,
+        message: 'Saving to database...',
+        processed: docs.length,
+        total: totalRows,
+      });
     }
 
     if (docs.length > 0) {
@@ -465,14 +556,52 @@ export class FileService {
       await collection.insertMany(docs);
     }
 
-    return {
+    const result = {
       message: `Processed ${docs.length} of ${rows.length} rows`,
       processed: docs.length,
       errors,
     };
+
+    // Emit completion
+    if (jobId) {
+      this.webSocketService.emitProgress(jobId, {
+        jobId,
+        templateName,
+        status: UploadStatus.COMPLETED,
+        progress: 100,
+        message: `Successfully processed ${docs.length} rows`,
+        processed: docs.length,
+        total: totalRows,
+        errors: errors.length > 0 ? errors : undefined,
+      });
+    }
+
+    if (errors.length > 0) {
+      this.logger.warn({
+        message: 'upload.process.partial',
+        templateName,
+        processed: docs.length,
+        total: rows.length,
+        errorsCount: errors.length,
+        durationMs: Date.now() - startedAt,
+        jobId,
+      });
+    } else {
+      this.logger.log({
+        message: 'upload.process.success',
+        templateName,
+        processed: docs.length,
+        total: rows.length,
+        durationMs: Date.now() - startedAt,
+        jobId,
+      });
+    }
+
+    return result;
   }
 
   async getData(templateName: string, page = 1, limit = 10): Promise<any[]> {
+    const startedAt = Date.now();
     const collection = this.mongo.getCollection(
       templateName === 'users' ? 'users' : 'products',
     );
@@ -483,7 +612,16 @@ export class FileService {
       .skip(skip)
       .limit(Number(limit));
 
-    return cursor.toArray();
+    const data = await cursor.toArray();
+    this.logger.log({
+      message: 'data.fetch.success',
+      templateName,
+      page: Number(page),
+      limit: Number(limit),
+      returned: data.length,
+      durationMs: Date.now() - startedAt,
+    });
+    return data;
   }
 
   private parseBoolean(value: unknown): boolean | undefined {
@@ -523,7 +661,7 @@ export class FileService {
     if (value === undefined || value === null || value === '') {
       throw new Error(`Field '${name}' is required`);
     }
-    return value as T;
+    return value;
   }
 
   private mapUserRow(row: Record<string, unknown>) {
