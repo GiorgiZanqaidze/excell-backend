@@ -23,6 +23,42 @@ API for generating Excel templates and processing uploaded Excel files into Mong
 
 See the conversational guide: [docs/frontend-integration.md](docs/frontend-integration.md)
 
+## 🔌 WebSockets (File Upload Progress)
+
+Real-time updates for async uploads are delivered over Socket.IO.
+
+- **Namespace**: `/file-upload`
+- **Connect URL**: `http://localhost:${PORT||3000}/file-upload`
+- **Events**:
+  - Client → Server: `join-upload-room`, `leave-upload-room`, `ping`
+  - Server → Client: `upload-progress`, `upload-completed`, `upload-error`, `pong`
+
+Minimal client example (JavaScript):
+
+```js
+import { io } from 'socket.io-client';
+
+const base = 'http://localhost:3000'; // or your API URL
+const socket = io(`${base}/file-upload`, { transports: ['websocket'] });
+
+const jobId = 'your-job-id';
+socket.emit('join-upload-room', { jobId });
+
+socket.on('upload-progress', (p) => console.log('progress', p));
+socket.on('upload-completed', (d) => console.log('done', d));
+socket.on('upload-error', (e) => console.error('error', e));
+
+// when finished
+socket.emit('leave-upload-room', { jobId });
+socket.disconnect();
+```
+
+Notes:
+
+- No extra `.env` is required specifically for WebSockets; it uses the app `PORT`.
+- HTTP CORS is controlled by `CORS_ORIGINS` in `.env`; the gateway itself allows all origins by default.
+- See full details in `src/websocket/README.md`.
+
 ---
 
 ## 📂 Project Structure (Actual)

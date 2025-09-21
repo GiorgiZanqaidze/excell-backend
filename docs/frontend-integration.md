@@ -15,9 +15,8 @@ This is a practical, conversational FAQ for frontend teams integrating with the 
 - List templates: `GET /file/templates`
 - Template details: `GET /file/templates/:templateName`
 - Download template: `GET /file/templates/:templateName/download?includeSample=true|false` → XLSX
-- Upload Excel (sync): `POST /file/upload/:templateName` (multipart field `file`)
-- Upload Excel (async): `POST /file/upload/:templateName/async` → `{ jobId }`
-- Check job: `GET /file/jobs/:id`
+- Upload Excel (async): `POST /file/upload/:templateName/async` (multipart field `file`) → `{ jobId, status: 'queued' }`
+- Check job: `GET /file/jobs/:id` → `{ id, state, progress, attemptsMade, returnvalue, failedReason? }`
 - Export data to Excel: `GET /file/export/:templateName?limit=` → XLSX
 - Fetch paginated data: `GET /file/data/:templateName?page=&limit=`
 
@@ -48,16 +47,6 @@ export class ExcelBackendService {
       params,
       responseType: 'blob',
     });
-  }
-
-  uploadSync(name: string, file: File) {
-    const form = new FormData();
-    form.append('file', file);
-    return this.http.post<{
-      message: string;
-      processed: number;
-      errors: string[];
-    }>(`${this.base}/file/upload/${name}`, form);
   }
 
   uploadAsync(name: string, file: File) {
@@ -123,7 +112,9 @@ this.service.uploadAsync('users', file).subscribe(({ jobId }) => {
 });
 ```
 
-### What does a sync upload response look like?
+### What does the async upload result look like when complete?
+
+The queue worker returns the same shape as sync processing would, via `s.returnvalue` from `GET /file/jobs/:id` and also sent over WebSocket `upload-completed`:
 
 ```json
 {
@@ -133,12 +124,66 @@ this.service.uploadAsync('users', file).subscribe(({ jobId }) => {
 }
 ```
 
+### WebSockets — live progress for uploads
+
+- Library: Socket.IO
+- Namespace: `/file-upload`
+- Connect URL: `http://localhost:3000/file-upload` (use your API base)
+- Rooms: For each job, join `upload-${jobId}`
+
+Events:
+
+- Client → Server:
+  - `join-upload-room` → `{ jobId: string }`
+  - `leave-upload-room` → `{ jobId: string }`
+  - `ping` → `{}`
+- Server → Client:
+  - `upload-progress` → `{ jobId, templateName, status: 'started'|'processing'|'completed'|'failed', progress: number, message: string, processed?, total?, errors? }`
+  - `upload-completed` → `{ jobId, result, timestamp }` (result matches the JSON above)
+  - `upload-error` → `{ jobId, error, timestamp }`
+  - `pong` → `{ timestamp }`
+
+Minimal client example:
+
+```ts
+import { io } from 'socket.io-client';
+
+const socket = io('http://localhost:3000/file-upload', {
+  transports: ['websocket'],
+});
+const jobId = 'your-job-id';
+
+socket.emit('join-upload-room', { jobId });
+
+socket.on('upload-progress', (p) => console.log('progress', p));
+socket.on('upload-completed', (d) => console.log('done', d));
+socket.on('upload-error', (e) => console.error('error', e));
+
+// later
+socket.emit('leave-upload-room', { jobId });
+socket.disconnect();
+```
+
 ### Common pitfalls
 
 - Use multipart field name `file` (case-sensitive).
 - For downloads, set `responseType: 'blob'`.
 - Dates should be `YYYY-MM-DD`. Booleans: `true/false`. Numbers: decimal point.
 - If you get CORS errors, update `CORS_ORIGINS` in backend `.env` and restart.
+
+### Limits and constraints
+
+- Max upload size: 10 MB (enforced by backend interceptor).
+- Supported file types: `.xlsx`, `.xls` (MIME includes `spreadsheet`).
+- Excel parsing starts from row 2 (row 1 treated as headers).
+- Generated templates include an `Instructions` sheet with column specs.
+
+### Troubleshooting
+
+- CORS: Ensure your frontend origin is listed in `CORS_ORIGINS`.
+- WebSocket connection fails: verify the correct base URL and that the backend port (`PORT`) is reachable. If API is behind HTTPS, use `wss://`.
+- No progress updates: ensure you join the correct room: `upload-${jobId}` used by the job returned from `POST /file/upload/:templateName/async`.
+- Job polling never completes: check `GET /file/jobs/:id` return; if `failedReason` is set, inspect the error and your file data.
 
 ### Can I change the base URL per environment?
 
