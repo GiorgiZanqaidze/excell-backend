@@ -1,11 +1,11 @@
 import { Inject, Injectable, LoggerService } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiProperty } from '@nestjs/swagger';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import * as XLSX from 'xlsx';
 import { MongoService } from '../mongo/mongo.service';
-import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
-import { WebSocketService } from '../websocket/websocket.service';
 import { UploadStatus } from '../websocket/websocket.enums';
+import { WebSocketService } from '../websocket/websocket.service';
 
 export class TemplateColumn {
   @ApiProperty({
@@ -521,8 +521,13 @@ export class FileService {
         errors.push(`Row ${index + 2}: ${message}`);
       }
 
-      // Emit progress every 10 rows or at the end
-      if (jobId && (index % 10 === 0 || index === rows.length - 1)) {
+      // Emit progress every 100 rows, every 5% progress, or at the end
+      const shouldEmit =
+        index % 100 === 0 || // Every 100 rows
+        index === rows.length - 1 || // At the end
+        Math.floor(((index + 1) / totalRows) * 100) % 5 === 0; // Every 5% progress
+
+      if (jobId && shouldEmit) {
         const progress = Math.round(((index + 1) / totalRows) * 80) + 10; // 10-90%
         this.webSocketService.emitProgress(jobId, {
           jobId,
@@ -550,10 +555,30 @@ export class FileService {
     }
 
     if (docs.length > 0) {
-      const collection = this.mongo.getCollection(
-        templateName === 'users' ? 'users' : 'products',
-      );
-      await collection.insertMany(docs);
+      try {
+        const collection = this.mongo.getCollection(
+          templateName === 'users' ? 'users' : 'products',
+        );
+        await collection.insertMany(docs);
+        this.logger.log({
+          message: 'database.insert.success',
+          templateName,
+          count: docs.length,
+          jobId,
+        });
+      } catch (dbError) {
+        this.logger.error({
+          message: 'database.insert.failed',
+          templateName,
+          count: docs.length,
+          error:
+            dbError instanceof Error ? dbError.message : 'Unknown DB error',
+          jobId,
+        });
+        throw new Error(
+          `Database insertion failed: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`,
+        );
+      }
     }
 
     const result = {

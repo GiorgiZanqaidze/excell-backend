@@ -1,10 +1,10 @@
-import { Inject, Injectable } from '@nestjs/common';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
-import { FileService } from './file.service';
-import { WebSocketService } from '../websocket/websocket.service';
-import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import type { LoggerService } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { Job } from 'bullmq';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
+import { WebSocketService } from '../websocket/websocket.service';
+import { FileService } from './file.service';
 
 export type UploadJobData = {
   templateName: string;
@@ -57,6 +57,7 @@ export class FileProcessor extends WorkerHost {
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : 'Unknown error';
+        const errorStack = error instanceof Error ? error.stack : undefined;
 
         // Emit error via WebSocket
         this.webSocketService.emitError(actualJobId, errorMessage);
@@ -66,6 +67,7 @@ export class FileProcessor extends WorkerHost {
           templateName,
           jobId: actualJobId,
           error: errorMessage,
+          stack: errorStack,
         });
         throw error;
       }

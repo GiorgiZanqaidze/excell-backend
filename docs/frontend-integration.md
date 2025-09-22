@@ -1,189 +1,184 @@
-## Frontend Guide (Conversational) — excell-backend
+## Frontend Integration — Minimal Guide
 
-_Version: 1.0_
+_Version: 2.0 (minimal)_
 
-This is a practical, conversational FAQ for frontend teams integrating with the backend.
+This guide reflects only what is derivable from the app bootstrap (`src/main.ts`).
 
-### What’s the base URL? Do I need CORS?
+### Base URL
 
-- Base URL: `http://localhost:3000`
-- Swagger UI: `http://localhost:3000/api`
-- Ensure your app origin is in `CORS_ORIGINS` (.env). Example: `CORS_ORIGINS=http://localhost:4200`
+- Default: `http://localhost:3000`
+- The actual port comes from `.env` `PORT` (defaults to `3000`).
 
-### What can I do with the API?
+### CORS
 
-- List templates: `GET /file/templates`
-- Template details: `GET /file/templates/:templateName`
-- Download template: `GET /file/templates/:templateName/download?includeSample=true|false` → XLSX
-- Upload Excel (async): `POST /file/upload/:templateName/async` (multipart field `file`) → `{ jobId, status: 'queued' }`
-- Check job: `GET /file/jobs/:id` → `{ id, state, progress, attemptsMade, returnvalue, failedReason? }`
-- Export data to Excel: `GET /file/export/:templateName?limit=` → XLSX
-- Fetch paginated data: `GET /file/data/:templateName?page=&limit=`
+- Enabled with credentials.
+- Allowed origins are read from `.env` `CORS_ORIGINS` (comma-separated).
+- Example: `CORS_ORIGINS=http://localhost:4200,http://localhost:5173`
 
-### Which templates exist out of the box?
+### Swagger
 
-- `users` and `products` (see README for columns). You can inspect schema via `GET /file/templates/:templateName`.
+- Available at: `/api`
+- Example: `http://localhost:3000/api`
 
-### How do I integrate in Angular quickly?
+### REST Endpoints
 
-```ts
-// excel-backend.service.ts
-@Injectable({ providedIn: 'root' })
-export class ExcelBackendService {
-  private readonly base = 'http://localhost:3000';
-  constructor(private http: HttpClient) {}
+The following endpoints are available under the `file` controller. Replace `http://localhost:3000` with your backend base URL.
 
-  getTemplates() {
-    return this.http.get<ExcelTemplate[]>(`${this.base}/file/templates`);
-  }
+#### 1) Download Excel template
 
-  getTemplateInfo(name: string) {
-    return this.http.get<ExcelTemplate>(`${this.base}/file/templates/${name}`);
-  }
+- Method: `GET`
+- Path: `/file/templates/:templateName/download`
+- Query:
+  - `includeSample` (optional) — `true|false` (include sample rows)
+- Response: `.xlsx` file (binary)
 
-  downloadTemplate(name: string, includeSample = false) {
-    const params = new HttpParams().set('includeSample', String(includeSample));
-    return this.http.get(`${this.base}/file/templates/${name}/download`, {
-      params,
-      responseType: 'blob',
-    });
-  }
+Example:
 
-  uploadAsync(name: string, file: File) {
-    const form = new FormData();
-    form.append('file', file);
-    return this.http.post<{ jobId: string }>(
-      `${this.base}/file/upload/${name}/async`,
-      form,
-    );
-  }
-
-  getJobStatus(id: string) {
-    return this.http.get<{
-      id: string;
-      state: string;
-      progress: number;
-      attemptsMade: number;
-      returnvalue: unknown;
-      failedReason?: string;
-    }>(`${this.base}/file/jobs/${id}`);
-  }
-
-  exportData(name: string, limit = 1000) {
-    const params = new HttpParams().set('limit', limit);
-    return this.http.get(`${this.base}/file/export/${name}`, {
-      params,
-      responseType: 'blob',
-    });
-  }
-
-  getData<T = any>(name: string, page = 1, limit = 10) {
-    const params = new HttpParams().set('page', page).set('limit', limit);
-    return this.http.get<T[]>(`${this.base}/file/data/${name}`, { params });
-  }
-}
+```bash
+curl -L "http://localhost:3000/file/templates/users/download?includeSample=true" -o users_template.xlsx
 ```
 
-### How do I save downloads (templates/exports) in the browser?
+#### 2) Export data to Excel
 
-```ts
-this.service.downloadTemplate('users', true).subscribe((blob) => {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'users_template.xlsx';
-  a.click();
-  URL.revokeObjectURL(url);
-});
+- Method: `GET`
+- Path: `/file/export/:templateName`
+- Query:
+  - `limit` (optional, default 1000)
+- Response: `.xlsx` file (binary)
+
+Example:
+
+```bash
+curl -L "http://localhost:3000/file/export/users?limit=500" -o users_export.xlsx
 ```
 
-### How do I poll an async job until it’s done?
+#### 3) Upload Excel (async via BullMQ)
 
-```ts
-this.service.uploadAsync('users', file).subscribe(({ jobId }) => {
-  const sub = interval(1500)
-    .pipe(switchMap(() => this.service.getJobStatus(jobId)))
-    .subscribe((s: any) => {
-      if (['completed', 'failed'].includes(s.state)) {
-        sub.unsubscribe();
-        // handle s.returnvalue or s.failedReason
-      }
-    });
-});
+- Method: `POST`
+- Path: `/file/upload/:templateName/async`
+- Body: `multipart/form-data` with field `file`
+- Response: JSON `{ jobId: string, status: 'queued' }`
+
+Example:
+
+```bash
+curl -X POST "http://localhost:3000/file/upload/users/async" \
+  -F "file=@./users_template.xlsx"
 ```
 
-### What does the async upload result look like when complete?
+Sample response:
 
-The queue worker returns the same shape as sync processing would, via `s.returnvalue` from `GET /file/jobs/:id` and also sent over WebSocket `upload-completed`:
+```json
+{ "jobId": "upload-1726932289-abc123xyz", "status": "queued" }
+```
+
+Use the returned `jobId` to poll the job status below.
+
+#### 4) Get job status/result
+
+- Method: `GET`
+- Path: `/file/jobs/:id`
+- Response:
+  - `id`: string
+  - `state`: string (e.g., `waiting`, `active`, `completed`, `failed`)
+  - `progress`: number
+  - `attemptsMade`: number
+  - `returnvalue`: unknown (on success, contains the processing summary)
+  - `failedReason?`: string
+
+Example:
+
+```bash
+curl "http://localhost:3000/file/jobs/upload-1726932289-abc123xyz"
+```
+
+Sample success payload:
 
 ```json
 {
-  "message": "Processed 10 of 12 rows",
-  "processed": 10,
-  "errors": ["Row 3: Field 'email' is required"]
+  "id": "upload-1726932289-abc123xyz",
+  "state": "completed",
+  "progress": 100,
+  "attemptsMade": 1,
+  "returnvalue": {
+    "message": "Processed 10 of 12 rows",
+    "processed": 10,
+    "errors": ["Row 3: Field 'email' is required", "Row 9: Invalid date"]
+  }
 }
 ```
 
-### WebSockets — live progress for uploads
+Sample failure payload:
 
-- Library: Socket.IO
-- Namespace: `/file-upload`
-- Connect URL: `http://localhost:3000/file-upload` (use your API base)
-- Rooms: For each job, join `upload-${jobId}`
-
-Events:
-
-- Client → Server:
-  - `join-upload-room` → `{ jobId: string }`
-  - `leave-upload-room` → `{ jobId: string }`
-  - `ping` → `{}`
-- Server → Client:
-  - `upload-progress` → `{ jobId, templateName, status: 'started'|'processing'|'completed'|'failed', progress: number, message: string, processed?, total?, errors? }`
-  - `upload-completed` → `{ jobId, result, timestamp }` (result matches the JSON above)
-  - `upload-error` → `{ jobId, error, timestamp }`
-  - `pong` → `{ timestamp }`
-
-Minimal client example:
-
-```ts
-import { io } from 'socket.io-client';
-
-const socket = io('http://localhost:3000/file-upload', {
-  transports: ['websocket'],
-});
-const jobId = 'your-job-id';
-
-socket.emit('join-upload-room', { jobId });
-
-socket.on('upload-progress', (p) => console.log('progress', p));
-socket.on('upload-completed', (d) => console.log('done', d));
-socket.on('upload-error', (e) => console.error('error', e));
-
-// later
-socket.emit('leave-upload-room', { jobId });
-socket.disconnect();
+```json
+{
+  "id": "upload-1726932289-abc123xyz",
+  "state": "failed",
+  "progress": 10,
+  "attemptsMade": 1,
+  "failedReason": "Template 'users' not found"
+}
 ```
 
-### Common pitfalls
+#### 5) Fetch paginated data
 
-- Use multipart field name `file` (case-sensitive).
-- For downloads, set `responseType: 'blob'`.
-- Dates should be `YYYY-MM-DD`. Booleans: `true/false`. Numbers: decimal point.
-- If you get CORS errors, update `CORS_ORIGINS` in backend `.env` and restart.
+- Method: `GET`
+- Path: `/file/data/:templateName`
+- Query:
+  - `page` (optional, default 1)
+  - `limit` (optional, default 10)
+- Response: JSON array of documents
 
-### Limits and constraints
+Example:
 
-- Max upload size: 10 MB (enforced by backend interceptor).
-- Supported file types: `.xlsx`, `.xls` (MIME includes `spreadsheet`).
-- Excel parsing starts from row 2 (row 1 treated as headers).
-- Generated templates include an `Instructions` sheet with column specs.
+```bash
+curl "http://localhost:3000/file/data/users?page=1&limit=10"
+```
 
-### Troubleshooting
+Sample item (users):
 
-- CORS: Ensure your frontend origin is listed in `CORS_ORIGINS`.
-- WebSocket connection fails: verify the correct base URL and that the backend port (`PORT`) is reachable. If API is behind HTTPS, use `wss://`.
-- No progress updates: ensure you join the correct room: `upload-${jobId}` used by the job returned from `POST /file/upload/:templateName/async`.
-- Job polling never completes: check `GET /file/jobs/:id` return; if `failedReason` is set, inspect the error and your file data.
+```json
+{
+  "firstName": "John",
+  "lastName": "Doe",
+  "email": "john.doe@example.com",
+  "phone": "+995555123456",
+  "birthDate": "1990-01-01T00:00:00.000Z",
+  "isActive": true,
+  "createdAt": "2025-09-20T11:22:33.000Z",
+  "updatedAt": "2025-09-20T11:22:33.000Z"
+}
+```
+
+Sample item (products):
+
+```json
+{
+  "name": "Laptop Computer",
+  "sku": "LAP-001",
+  "price": 999.99,
+  "category": "Electronics",
+  "stock": 50,
+  "description": "High-performance laptop for professionals",
+  "createdAt": "2025-09-20T11:22:33.000Z",
+  "updatedAt": "2025-09-20T11:22:33.000Z"
+}
+```
+
+### Client Setup Checklist
+
+- Point your frontend base URL to the backend: e.g., `http://localhost:3000`.
+- Ensure your app origin is listed in `CORS_ORIGINS`.
+- For production behind HTTPS, use `https://` and enable `wss://` for any WebSocket usage.
+
+### Health and Diagnostics
+
+- Check the console output on server start for the bound port and Swagger URL.
+- If requests are blocked by CORS, verify `CORS_ORIGINS` and restart the backend.
+
+### Notes
+
+- This guide lists the REST endpoints implemented in the project. For schemas and live contract, consult Swagger (`/api`).
 
 ### Can I change the base URL per environment?
 
@@ -191,7 +186,7 @@ Yes. Put it in your frontend environment file (e.g., Angular `environment.ts`) a
 
 ### Where can I explore available columns and examples?
 
-Open Swagger at `http://localhost:3000/api` and hit `GET /file/templates` or `GET /file/templates/{templateName}`.
+- Download a template with `GET /file/templates/:templateName/download?includeSample=true` to see column specs and an Instructions sheet.
 
 ---
 

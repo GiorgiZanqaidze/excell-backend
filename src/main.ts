@@ -1,10 +1,10 @@
-import { NestFactory } from '@nestjs/core';
-import { ConfigService } from '@nestjs/config';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { AppModule } from './app.module';
-import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { LoggerService } from '@nestjs/common';
-import type { Request, Response, NextFunction } from 'express';
+import { ConfigService } from '@nestjs/config';
+import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import type { NextFunction, Request, Response } from 'express';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
+import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -43,7 +43,8 @@ async function bootstrap() {
   // Enable CORS
   app.enableCors({
     origin: (
-      configService.get<string>('CORS_ORIGINS') ?? 'http://localhost:3000'
+      configService.get<string>('CORS_ORIGINS') ??
+      'http://localhost:3000,http://localhost:4200'
     ).split(','),
 
     credentials: true,

@@ -1,6 +1,6 @@
 import { MongoClient, type Db } from 'mongodb';
-import { USERS_COLLECTION } from '../file/entities/user.entity';
 import { PRODUCTS_COLLECTION } from '../file/entities/product.entity';
+import { USERS_COLLECTION } from '../file/entities/user.entity';
 import { LOGS_COLLECTION } from '../logging/entities/log-entry.entity';
 
 async function ensureCollection(db: Db, name: string): Promise<void> {
