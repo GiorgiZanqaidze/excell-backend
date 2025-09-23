@@ -31,9 +31,7 @@ async function run(): Promise<void> {
     await ensureCollection(db, LOGS_COLLECTION);
 
     // Create indexes (idempotent)
-    await db
-      .collection(USERS_COLLECTION)
-      .createIndex({ email: 1 }, { unique: true });
+    await db.collection(USERS_COLLECTION).createIndex({ _id: 1 });
     await db.collection(USERS_COLLECTION).createIndex({ createdAt: -1 });
 
     await db

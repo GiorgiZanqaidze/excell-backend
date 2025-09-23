@@ -1,9 +1,9 @@
 import { MongoClient } from 'mongodb';
-import { USERS_COLLECTION, type User } from '../file/entities/user.entity';
 import {
   PRODUCTS_COLLECTION,
   type Product,
 } from '../file/entities/product.entity';
+import { USERS_COLLECTION, type User } from '../file/entities/user.entity';
 
 function buildUsers(): User[] {
   const now = new Date();
@@ -11,7 +11,6 @@ function buildUsers(): User[] {
     {
       firstName: 'John',
       lastName: 'Doe',
-      email: 'john.doe@example.com',
       phone: '+995555123456',
       birthDate: new Date('1990-01-01'),
       isActive: true,
@@ -21,7 +20,6 @@ function buildUsers(): User[] {
     {
       firstName: 'Jane',
       lastName: 'Smith',
-      email: 'jane.smith@example.com',
       phone: '+995555789012',
       birthDate: new Date('1985-05-15'),
       isActive: true,
@@ -31,7 +29,6 @@ function buildUsers(): User[] {
     {
       firstName: 'Michael',
       lastName: 'Johnson',
-      email: 'michael.johnson@example.com',
       phone: '+995555222333',
       birthDate: new Date('1992-03-10'),
       isActive: false,
@@ -41,7 +38,6 @@ function buildUsers(): User[] {
     {
       firstName: 'Emily',
       lastName: 'Brown',
-      email: 'emily.brown@example.com',
       phone: '+995555444555',
       birthDate: new Date('1995-07-22'),
       isActive: true,
@@ -51,7 +47,6 @@ function buildUsers(): User[] {
     {
       firstName: 'David',
       lastName: 'Wilson',
-      email: 'david.wilson@example.com',
       phone: '+995555666777',
       birthDate: new Date('1988-11-30'),
       isActive: true,
