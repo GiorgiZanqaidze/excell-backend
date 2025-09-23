@@ -223,6 +223,44 @@
       },
       "problemMatcher": [],
       "detail": "Drop all collections (users, products, logs) from MongoDB"
+    },
+    {
+      "label": "Start File Processor Development Server",
+      "type": "npm",
+      "script": "start:dev:fp",
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Build File Processor",
+      "type": "npm",
+      "script": "start:prod:fp",
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": [],
+      "detail": "Build NestJS file processor for production"
+    },
+    {
+      "label": "Start File Processor Production Server",
+      "type": "npm",
+      "script": "start:prod:fp",
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      }
     }
   ]
 }

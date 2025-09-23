@@ -1,8 +1,32 @@
 {
   "$schema": "https://json.schemastore.org/nest-cli",
   "collection": "@nestjs/schematics",
-  "sourceRoot": "src",
+  "sourceRoot": "apps/excell-backend/src",
   "compilerOptions": {
-    "deleteOutDir": true
+    "deleteOutDir": true,
+    "webpack": true,
+    "tsConfigPath": "apps/excell-backend/tsconfig.app.json"
+  },
+  "monorepo": true,
+  "root": "apps/excell-backend",
+  "projects": {
+    "excell-backend": {
+      "type": "application",
+      "root": "apps/excell-backend",
+      "entryFile": "main",
+      "sourceRoot": "apps/excell-backend/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/excell-backend/tsconfig.app.json"
+      }
+    },
+    "file-processor": {
+      "type": "application",
+      "root": "apps/file-processor",
+      "entryFile": "main",
+      "sourceRoot": "apps/file-processor/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/file-processor/tsconfig.app.json"
+      }
+    }
   }
 }
