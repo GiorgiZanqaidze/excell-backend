@@ -25,6 +25,15 @@
       "skipFiles": ["<node_internals>/**"]
     },
     {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug TS (Excell Backend)",
+      "runtimeArgs": ["-r", "ts-node/register"],
+      "args": ["${workspaceFolder}/apps/excell-backend/src/main.ts"],
+      "sourceMaps": true,
+      "cwd": "${workspaceFolder}/apps/excell-backend"
+    },
+    {
       "name": "Debug NestJS (Watch Mode)",
       "type": "node",
       "request": "launch",
